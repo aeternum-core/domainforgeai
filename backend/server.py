@@ -32,6 +32,15 @@ except ModuleNotFoundError:
     from app.routers.public import router as public_router
 
 app = FastAPI(title="DomainForge AI")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 api_router = APIRouter(prefix="/api")
 api_router.include_router(runs_router)
 api_router.include_router(public_router)
