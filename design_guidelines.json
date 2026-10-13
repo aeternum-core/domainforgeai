@@ -1,0 +1,149 @@
+{
+  "project_title": "DomainForge AI - No-Code Expert Agent Builder for Social Good",
+  "tagline": "You understand the problem. We help build the agent.",
+  "hackathon_theme": "Accessibility & Social Good",
+  "archetype": "ORGANIC & TACTILE ACCESSIBLE TECH (Archetype 1 + High Contrast Swiss Hybrid)",
+  "emotional_tone": "Empowering, human-centric, high-trust, accessible, clear, and action-oriented",
+  "theme_strategy": "Hybrid Light Default with Accessible Dark Contrast Toggle. High contrast AA/AAA compliant text with warm sand/emerald/slate tones for human empathy and crisp visual hierarchy.",
+
+  "typography": {
+    "font_family_heading": "Outfit, sans-serif",
+    "font_family_body": "Plus Jakarta Sans, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "heading_styles": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.15]",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight leading-[1.2]",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "h4": "text-lg sm:text-xl font-semibold"
+    },
+    "body_styles": {
+      "large": "text-lg leading-relaxed text-slate-700 dark:text-slate-200",
+      "base": "text-base leading-normal text-slate-700 dark:text-slate-300",
+      "small": "text-sm leading-normal text-slate-600 dark:text-slate-400",
+      "micro": "text-xs font-medium tracking-wide text-slate-500 dark:text-slate-400"
+    },
+    "eyebrow": "uppercase text-xs font-bold tracking-[0.2em] text-emerald-700 dark:text-emerald-400"
+  },
+
+  "colors": {
+    "light": {
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "surface_elevated": "#F1F5F9",
+      "primary": "#0F766E",
+      "primary_hover": "#0D9488",
+      "primary_text": "#FFFFFF",
+      "secondary": "#0F172A",
+      "secondary_hover": "#334155",
+      "accent_emerald": "#059669",
+      "accent_amber": "#D97706",
+      "accent_indigo": "#4338CA",
+      "text_main": "#0F172A",
+      "text_muted": "#475569",
+      "border": "#CBD5E1",
+      "focus_ring": "#2563EB",
+      "card_shadow": "0 4px 20px -2px rgba(15, 23, 42, 0.08)"
+    },
+    "dark": {
+      "background": "#0B0F17",
+      "surface": "#141B2D",
+      "surface_elevated": "#1E293B",
+      "primary": "#14B8A6",
+      "primary_hover": "#2DD4BF",
+      "primary_text": "#0F172A",
+      "secondary": "#F8FAFC",
+      "secondary_hover": "#E2E8F0",
+      "accent_emerald": "#10B981",
+      "accent_amber": "#F59E0B",
+      "accent_indigo": "#6366F1",
+      "text_main": "#F8FAFC",
+      "text_muted": "#94A3B8",
+      "border": "#334155",
+      "focus_ring": "#60A5FA",
+      "card_shadow": "0 4px 20px -2px rgba(0, 0, 0, 0.5)"
+    }
+  },
+
+  "accessibility_standards": {
+    "wcag_compliance": "WCAG 2.2 AA / AAA for text contrast (minimum 4.5:1 for body, 3:1 for large UI)",
+    "focus_indicators": "Mandatory 3px solid focus ring with offset (`focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-blue-600 focus-visible:ring-offset-2`) on all interactive controls",
+    "keyboard_navigation": "Full keyboard accessibility: Tab sequence, Enter/Space activation, Esc modal dismiss, Arrow keys for workspace tabs",
+    "screen_readers": "aria-label, aria-expanded, aria-controls, aria-current, and role attributes on custom dropdowns, tabs, workflow diagrams, and action buttons",
+    "text_resizing": "Supports browser text zoom up to 200% without layout clipping or text overlap",
+    "reduced_motion": "Honors `prefers-reduced-motion: reduce` by disabling smooth scroll and heavy Framer Motion transitions",
+    "demo_indicators": "High-visibility badges for Demo Mode, Sample Data, and Simulated Backend Execution"
+  },
+
+  "layout_patterns": {
+    "navigation": "Sticky accessible header with blur backdrop (`backdrop-blur-md bg-white/90 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 z-50`), logo + tagline, high-contrast nav links, theme toggle, high-visibility 'Create Agent' CTA, and active keyboard indicator.",
+    "landing_dashboard": {
+      "hero_section": "Asymmetric Bento hero: Left column narrative headline + plain-language problem prompt box + quick launch CTAs ('Try Guided Demo', 'Create an Agent'). Right column live interactive demo card showing Civil Engineering Urban Waterlogging Agent preview.",
+      "social_good_banner": "Dedicated Social Good & Accessibility callout card highlighting domain expert empowerment without coding barriers.",
+      "community_demos_grid": "Tetris Grid (`grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6`) presenting community templates with domain tags (Civil Engineering, Accessibility, Public Health, Agriculture).",
+      "empty_and_user_agents": "Section displaying user's created agents with empty-state invitation card ('No custom agents yet - launch the 3-minute wizard')."
+    },
+    "creation_wizard": {
+      "type": "Multi-step guided wizard (4 steps: 1. Problem Description, 2. Data & Resources, 3. Goal & Output, 4. AI Proposal Review)",
+      "step_indicator": "Accessible step progress bar with active step announcer (`aria-current='step'`), checkmarks for completed steps, and clear visual numbers.",
+      "guidance": "In-context domain helper text, sample prompt inserters ('Insert Sample: Urban Flooding' / 'Insert Sample: Sidewalk Ramp Audit'), and plain-language guidance boxes."
+    },
+    "agent_workspace": {
+      "layout": "Header with agent status (Draft / Test Mode / Published), version badge, sample data toggle, and 8 tabbed views (`Overview`, `Workflow`, `Data & Tools`, `Run`, `Results`, `Activity`, `Improve`, `Deploy`).",
+      "tab_workflow": "Visual flow diagram with ordered node steps (Input Parse -> Spatial Hydrology Model -> Risk Classification -> Mitigation Action Plan), tool execution indicators, and click-to-edit step inspector.",
+      "tab_run": "Interactive split view: Left input parameters form + chat interface; Right live tool execution log with step-by-step spinner/success indicators.",
+      "tab_results": "Structured report renderer with key metrics widgets, bar/pie charts (Recharts), spatial risk list, and PDF/CSV export options.",
+      "tab_improve": "Feedback iteration interface with before-and-after prompt comparison, version history log, and re-evaluation trigger.",
+      "tab_deploy": "Deployment checklist (Accessibility Audit, Plain Language Check, Data Privacy, Tool Verification) with one-click 'Publish Agent Page' button generating shareable slug URL."
+    },
+    "public_published_page": {
+      "path": "/published/:agentId",
+      "header": "Clean visitor header with 'Built with DomainForge' badge, domain tags, author info, and social share button.",
+      "content": "Distraction-free workspace containing plain-language user input form, sample dataset launcher, instant run button, interactive progress, and structured result viewer."
+    }
+  },
+
+  "image_urls": {
+    "community_demos": [
+      {
+        "id": "waterlogging_demo",
+        "title": "Urban Waterlogging & Drainage Analysis Agent",
+        "domain": "Civil Engineering & Municipal Resilience",
+        "image_url": "https://images.unsplash.com/photo-1668961915523-884872e392f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHw0fHxjaXZpbCUyMGVuZ2luZWVyaW5nJTIwdXJiYW4lMjBmbG9vZCUyMGRyYWluYWdlfGVufDB8fHx8MTc5MTg3MjY3NXww&ixlib=rb-4.1.0&q=85",
+        "description": "Urban drainage pipe infrastructure during storm overflow assessment"
+      },
+      {
+        "id": "accessibility_audit_demo",
+        "title": "Community Sidewalk Accessibility Audit Template",
+        "domain": "Urban Accessibility & Disability Rights",
+        "image_url": "https://images.unsplash.com/photo-1605116702570-c7c9c554c8d6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTN8MHwxfHNlYXJjaHwzfHx3aGVlbGNoYWlyJTIwYWNjZXNzaWJsZSUyMHVyYmFuJTIwc2lkZXdhbGt8ZW58MHx8fHwxNzkxODcyNjgxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Tactile sidewalk paving and curb ramp inspection"
+      },
+      {
+        "id": "expert_collaboration",
+        "title": "Domain Expert Multi-Disciplinary Workshop",
+        "domain": "Cross-Domain Problem Solving",
+        "image_url": "https://images.unsplash.com/photo-1586936893354-362ad6ae47ba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwzfHxkaXZlcnNlJTIwdGVhbSUyMGNvbGxhYm9yYXRpb24lMjByZXNlYXJjaHxlbnwwfHx8fDE3OTE4NzI2ODF8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Domain experts mapping out complex workflows using sticky notes and data cards"
+      }
+    ]
+  },
+
+  "component_guidelines": {
+    "buttons": "Pill or rounded-lg styling with clear contrast. Primary: `bg-teal-700 hover:bg-teal-800 text-white font-semibold shadow-sm focus-visible:ring-3 focus-visible:ring-blue-600 transition-colors`. Secondary: `bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 font-medium`.",
+    "cards": "Layered surface cards with explicit 1px subtle borders (`border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl p-6 shadow-sm hover:border-teal-500/50 transition-all`). Internal padding enforced (`p-6` or `p-8`) to prevent text collision.",
+    "inputs_and_selects": "Accessible Shadcn Form inputs (`Input`, `Textarea`, `Select`, `Checkbox`) wrapped with `<label>` element, visible field hint, clear focus ring, and error text with `aria-describedby`.",
+    "badges": "High-contrast status badges: Success (`bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200 border border-emerald-300`), Warning (`bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200`), Info (`bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200`), Demo Mode (`bg-indigo-100 text-indigo-900 dark:bg-indigo-950 dark:text-indigo-200 font-bold`).",
+    "workflow_nodes": "Custom step cards linked with animated connecting arrows/lines, showing step number, step title, plain-language description, assigned tool icon, and execution status pill.",
+    "toasts": "Sonner toast system configured with clear high-contrast icons for creation success, run completion, and publish events."
+  },
+
+  "instructions_to_main_agent": [
+    "Ensure ALL key interactive elements (buttons, inputs, tabs, modal triggers, workspace tab buttons, published page controls) have clear `data-testid` attributes (e.g. `data-testid='create-agent-btn'`, `data-testid='tab-workflow'`).",
+    "Implement light and dark mode toggle using React state or next-themes pattern, defaulting to clean high-contrast light theme with rich dark slate mode.",
+    "Build pre-populated interactive sample data for the 'Urban Waterlogging Analysis Agent' (civil engineering problem prompt, rainfall elevation dataset, workflow nodes, sample simulation output with map/metrics) and 'Community Accessibility Audit Template'.",
+    "Ensure wizard supports 1-click 'Fill with Sample Data' so hackathon judges can immediately test agent creation without typing long prompts.",
+    "Ensure workspace includes live run simulation with animated step-by-step workflow completion, realistic log output, and visual structured results.",
+    "Ensure deploy flow lets users toggle status to Published and navigate to the standalone public agent page (`/published/:id`).",
+    "Keep standard JavaScript / React `.js` / `.jsx` file extensions as configured in project."
+  ]
+}
