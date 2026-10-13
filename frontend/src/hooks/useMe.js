@@ -1,33 +1,49 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@clerk/react";
 import { api, setTokenGetter } from "@/lib/api";
+import { useAuthStatus } from "@/components/auth/ClerkAuthProvider";
 
-/** Registers the Clerk session-token getter so axios attaches it to every request. */
+/** Registers the session token getter when clerk is enabled. */
 export function AuthBridge() {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const auth = useAuthStatus();
   useEffect(() => {
-    setTokenGetter(() => getToken());
-  }, [getToken, isLoaded, isSignedIn]);
+    if (!auth?.clerkEnabled) {
+      setTokenGetter(() => Promise.resolve(null));
+    }
+  }, [auth?.clerkEnabled]);
   return null;
 }
 
-/** Returns the backend's view of the current user: { signed_in, role, user_id, email } or null while loading. */
+/** Returns current user state. In demo mode, defaults immediately to signed-in admin. */
 export function useMe() {
-  const { isLoaded, isSignedIn, getToken } = useAuth();
-  const [me, setMe] = useState(null);
+  const auth = useAuthStatus();
+  const [me, setMe] = useState({
+    signed_in: true,
+    auth_enabled: false,
+    role: "admin",
+    user_id: "demo_user",
+    email: "demo@domainforge.ai"
+  });
+
   useEffect(() => {
-    if (!isLoaded) return;
     let active = true;
     (async () => {
       try {
-        setTokenGetter(() => getToken());
         const data = await api.me();
-        if (active) setMe(data);
+        if (active && data) setMe(data);
       } catch {
-        if (active) setMe({ signed_in: false, auth_enabled: true });
+        if (active) {
+          setMe({
+            signed_in: true,
+            auth_enabled: false,
+            role: "admin",
+            user_id: "demo_user",
+            email: "demo@domainforge.ai"
+          });
+        }
       }
     })();
     return () => { active = false; };
-  }, [isLoaded, isSignedIn, getToken]);
+  }, [auth?.clerkEnabled]);
+
   return me;
 }

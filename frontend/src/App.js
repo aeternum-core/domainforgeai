@@ -1,10 +1,11 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { SignIn, SignUp } from "@clerk/react";
 import { Toaster } from "@/components/ui/sonner";
+import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/layout/SiteHeader";
-import ClerkAuthProvider from "@/components/auth/ClerkAuthProvider";
+import ClerkAuthProvider, { useAuthStatus } from "@/components/auth/ClerkAuthProvider";
 import { AuthBridge } from "@/hooks/useMe";
 import Dashboard from "@/pages/Dashboard";
 import CreateWizard from "@/pages/CreateWizard";
@@ -39,6 +40,35 @@ function AuthScreen({ children }) {
   );
 }
 
+
+function SafeSignIn() {
+  const auth = useAuthStatus();
+  if (!auth?.clerkEnabled) {
+    return (
+      <div className="text-center space-y-4">
+        <h3 className="text-xl font-bold">Demo Mode Active</h3>
+        <p className="text-sm text-muted-foreground">You are in Demo mode with full administrative and authoring access. No sign in required.</p>
+        <Button asChild><Link to="/">Go to Dashboard</Link></Button>
+      </div>
+    );
+  }
+  return <SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" withSignUp />;
+}
+
+function SafeSignUp() {
+  const auth = useAuthStatus();
+  if (!auth?.clerkEnabled) {
+    return (
+      <div className="text-center space-y-4">
+        <h3 className="text-xl font-bold">Demo Mode Active</h3>
+        <p className="text-sm text-muted-foreground">You are in Demo mode with full administrative and authoring access. No sign up required.</p>
+        <Button asChild><Link to="/">Go to Dashboard</Link></Button>
+      </div>
+    );
+  }
+  return <SignUp routing="path" path="/sign-up" signInUrl="/sign-in" />;
+}
+
 function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
@@ -51,8 +81,8 @@ function App() {
               <Route path="/create" element={<Shell><CreateWizard /></Shell>} />
               <Route path="/agents/:id" element={<Shell><Workspace /></Shell>} />
               <Route path="/a/:slug" element={<Shell><PublicAgent /></Shell>} />
-              <Route path="/sign-in/*" element={<AuthScreen><SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" withSignUp /></AuthScreen>} />
-              <Route path="/sign-up/*" element={<AuthScreen><SignUp routing="path" path="/sign-up" signInUrl="/sign-in" /></AuthScreen>} />
+              <Route path="/sign-in/*" element={<AuthScreen><SafeSignIn /></AuthScreen>} />
+              <Route path="/sign-up/*" element={<AuthScreen><SafeSignUp /></AuthScreen>} />
               <Route path="*" element={<Shell><NotFound /></Shell>} />
             </Routes>
           </ClerkAuthProvider>

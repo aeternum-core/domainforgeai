@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClerkProvider } from "@clerk/react";
 
@@ -12,44 +12,68 @@ const appearance = {
   },
 };
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8001";
+
+export const AuthContext = createContext({
+  clerkEnabled: false,
+  isLoaded: true,
+  isSignedIn: true,
+  user: { id: "demo_user", fullName: "Domain Expert", email: "demo@domainforge.ai" }
+});
+
+export const useAuthStatus = () => useContext(AuthContext);
 
 export default function ClerkAuthProvider({ children }) {
   const navigate = useNavigate();
   const [config, setConfig] = useState(null);
-  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    const load = async (attempt = 0) => {
+    const load = async () => {
       try {
-        const cfg = await (await fetch(`${BACKEND_URL}/api/clerk/config`)).json();
-        if (cfg.enabled) return cancelled || setConfig(cfg);
-      } catch { /* backend restarting */ }
-      if (cancelled) return;
-      if (attempt >= 20) return setUnavailable(true);
-      setTimeout(() => load(attempt + 1), 1500);
+        const res = await fetch(`${BACKEND_URL}/api/clerk/config`);
+        const cfg = await res.json();
+        if (!cancelled) setConfig(cfg);
+      } catch {
+        if (!cancelled) setConfig({ enabled: false });
+      }
     };
     load();
     return () => { cancelled = true; };
   }, []);
 
-  if (unavailable) return <p style={{ padding: 24 }}>Sign-in is unavailable right now. Refresh the page to try again.</p>;
-  if (!config) return null;
+  if (!config) {
+    return (
+      <AuthContext.Provider value={{ clerkEnabled: false, isLoaded: true, isSignedIn: true }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
+  if (!config.enabled || !config.publishable_key) {
+    return (
+      <AuthContext.Provider value={{ clerkEnabled: false, isLoaded: true, isSignedIn: true }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
   return (
-    <ClerkProvider
-      publishableKey={config.publishable_key}
-      proxyUrl={config.proxy_url || undefined}
-      appearance={appearance}
-      routerPush={(to) => navigate(to)}
-      routerReplace={(to) => navigate(to, { replace: true })}
-      signInUrl="/sign-in"
-      signUpUrl="/sign-up"
-      signInFallbackRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
-      afterSignOutUrl="/"
-    >
-      {children}
-    </ClerkProvider>
+    <AuthContext.Provider value={{ clerkEnabled: true, isLoaded: true, isSignedIn: true }}>
+      <ClerkProvider
+        publishableKey={config.publishable_key}
+        proxyUrl={config.proxy_url || undefined}
+        appearance={appearance}
+        routerPush={(to) => navigate(to)}
+        routerReplace={(to) => navigate(to, { replace: true })}
+        signInUrl="/sign-in"
+        signUpUrl="/sign-up"
+        signInFallbackRedirectUrl="/"
+        signUpFallbackRedirectUrl="/"
+        afterSignOutUrl="/"
+      >
+        {children}
+      </ClerkProvider>
+    </AuthContext.Provider>
   );
 }

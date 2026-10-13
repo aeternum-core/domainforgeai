@@ -3,10 +3,13 @@ import { Hexagon, Plus, LogIn } from "lucide-react";
 import { Show, SignInButton, UserButton } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuthStatus } from "@/components/auth/ClerkAuthProvider";
 
 export function SiteHeader() {
   const { pathname } = useLocation();
   const onPublic = pathname.startsWith("/a/");
+  const auth = useAuthStatus();
+
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
@@ -34,21 +37,29 @@ export function SiteHeader() {
           <ThemeToggle />
           {!onPublic && (
             <>
-              <Show when="signed-out">
-                <SignInButton mode="redirect">
-                  <Button variant="outline" data-testid="nav-signin">
-                    <LogIn className="h-4 w-4" /> Sign in
-                  </Button>
-                </SignInButton>
-              </Show>
-              <Show when="signed-in">
+              {auth?.clerkEnabled ? (
+                <>
+                  <Show when="signed-out">
+                    <SignInButton mode="redirect">
+                      <Button variant="outline" data-testid="nav-signin">
+                        <LogIn className="h-4 w-4" /> Sign in
+                      </Button>
+                    </SignInButton>
+                  </Show>
+                  <Show when="signed-in">
+                    <Button asChild data-testid="nav-create">
+                      <Link to="/create"><Plus className="h-4 w-4" /> Create agent</Link>
+                    </Button>
+                    <div data-testid="nav-user-button">
+                      <UserButton afterSignOutUrl="/" />
+                    </div>
+                  </Show>
+                </>
+              ) : (
                 <Button asChild data-testid="nav-create">
                   <Link to="/create"><Plus className="h-4 w-4" /> Create agent</Link>
                 </Button>
-                <div data-testid="nav-user-button">
-                  <UserButton afterSignOutUrl="/" />
-                </div>
-              </Show>
+              )}
             </>
           )}
         </div>
