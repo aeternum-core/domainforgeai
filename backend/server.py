@@ -1,16 +1,23 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
 import os
 import logging
 import copy
+import requests as http_requests
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
 import agent_engine as engine
 import samples
+
+try:  # launched as `backend.server` (the default)
+    from backend.clerk_auth import clerk_router, require_user, verify_session_token
+except ModuleNotFoundError:  # launched from inside backend/ as `server`
+    from clerk_auth import clerk_router, require_user, verify_session_token
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,6 +32,101 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("domainforge")
+
+
+# ---------------------------------------------------------------------------
+# Roles & access control (Emergent-managed Clerk auth)
+# ---------------------------------------------------------------------------
+ROLES = ["admin", "member"]
+DEFAULT_ROLE = "member"
+RETIRED_ROLES = {}
+RANK = {r: len(ROLES) - i for i, r in enumerate(ROLES)}
+
+ENV = "live" if os.environ.get("CLERK_PUBLISHABLE_KEY", "").startswith("pk_live_") else "preview"
+IN_ENV = {"env": {"$in": [ENV, None]}}
+
+
+def effective_role(role) -> str:
+    role = RETIRED_ROLES.get(role, role)
+    return role if role in ROLES else DEFAULT_ROLE
+
+
+def _is_admin_email(user_id: str) -> bool:
+    admins = {e.strip().lower() for e in os.environ.get("ADMIN_EMAIL", "").split(",") if e.strip()}
+    if not admins:
+        return False
+    r = http_requests.get(
+        f"https://api.clerk.com/v1/users/{user_id}", timeout=10,
+        headers={"Authorization": f"Bearer {os.environ['CLERK_SECRET_KEY']}", "User-Agent": "emergent-app"})
+    r.raise_for_status()
+    return any(e["email_address"].lower() in admins and (e.get("verification") or {}).get("status") == "verified"
+               for e in r.json()["email_addresses"])
+
+
+def _user_email(user_id: str):
+    try:
+        r = http_requests.get(
+            f"https://api.clerk.com/v1/users/{user_id}", timeout=10,
+            headers={"Authorization": f"Bearer {os.environ['CLERK_SECRET_KEY']}", "User-Agent": "emergent-app"})
+        r.raise_for_status()
+        d = r.json()
+        pid = d.get("primary_email_address_id")
+        emails = d.get("email_addresses", [])
+        for e in emails:
+            if e["id"] == pid:
+                return e["email_address"]
+        if emails:
+            return emails[0]["email_address"]
+    except Exception:
+        pass
+    return None
+
+
+async def _load_member(user: dict) -> dict:
+    uid = user["user_id"]
+    member = await db.users.find_one({"user_id": uid}, {"_id": 0})
+    if member is None or not member.get("role"):
+        role = "admin" if _is_admin_email(uid) else DEFAULT_ROLE
+        await db.users.update_one({"user_id": uid, "role": {"$in": [None, ""]}}, {"$set": {"role": role}})
+        member = await db.users.find_one_and_update(
+            {"user_id": uid}, {"$setOnInsert": {"user_id": uid, "role": role}},
+            upsert=True, projection={"_id": 0}, return_document=ReturnDocument.AFTER)
+    if member.get("env") != ENV:
+        await db.users.update_one({"user_id": uid}, {"$set": {"env": ENV}})
+    return {**member, "env": ENV, "role": effective_role(member["role"])}
+
+
+async def current_member(user: dict = Depends(require_user)) -> dict:
+    return await _load_member(user)
+
+
+def require_role(*roles: str):
+    async def check(member: dict = Depends(current_member)) -> dict:
+        if member["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Not allowed")
+        return member
+    return check
+
+
+async def member_from_request(request: Request) -> dict:
+    """Manual resolve for mixed public/owner endpoints."""
+    return await _load_member(require_user(request))
+
+
+def can_manage(agent: dict, member: dict) -> bool:
+    if member["role"] == "admin":
+        return True
+    owner = agent.get("owner_id")
+    if not owner:  # legacy / ownerless demo agents: any signed-in user may manage
+        return True
+    return owner == member["user_id"]
+
+
+async def get_managed_agent(agent_id: str, member: dict) -> dict:
+    agent = await get_agent_or_404(agent_id)
+    if not can_manage(agent, member):
+        raise HTTPException(status_code=403, detail="You can only manage agents you created.")
+    return agent
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +210,7 @@ def agent_summary(a):
         "version": a.get("version", 1), "run_count": a.get("run_count", 0),
         "test_passed": a.get("test_passed", False),
         "has_sample_data": bool(a.get("sample_data")),
+        "owner_id": a.get("owner_id"), "owner_email": a.get("owner_email"),
         "updated_at": a.get("updated_at"), "created_at": a.get("created_at"),
     }
 
@@ -131,7 +234,7 @@ async def list_templates():
 
 
 @api_router.post("/templates/{template_id}/instantiate")
-async def instantiate_template(template_id: str):
+async def instantiate_template(template_id: str, member: dict = Depends(current_member)):
     t = samples.get_template(template_id)
     if not t:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -141,7 +244,8 @@ async def instantiate_template(template_id: str):
         "constraints": t["constraints"], "name": t["name"], "prompt": t["example_prompt"],
     })
     agent = await _create_agent(proposal, sample_data=t["sample_data"], is_sample=True,
-                                template_id=template_id)
+                                template_id=template_id, owner_id=member["user_id"],
+                                owner_email=_user_email(member["user_id"]))
     return agent
 
 
@@ -158,7 +262,8 @@ async def generate(req: GenerateRequest):
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
-async def _create_agent(proposal, sample_data=None, is_sample=False, template_id=None):
+async def _create_agent(proposal, sample_data=None, is_sample=False, template_id=None,
+                        owner_id=None, owner_email=None):
     agent = copy.deepcopy(proposal)
     agent["id"] = engine.new_id()
     agent["status"] = "draft"
@@ -166,6 +271,8 @@ async def _create_agent(proposal, sample_data=None, is_sample=False, template_id
     agent["slug"] = None
     agent["is_sample"] = is_sample
     agent["template_id"] = template_id
+    agent["owner_id"] = owner_id
+    agent["owner_email"] = owner_email
     agent["version"] = 1
     agent["run_count"] = 0
     agent["test_passed"] = False
@@ -191,9 +298,10 @@ def _snapshot(agent):
 
 
 @api_router.post("/agents")
-async def create_agent(req: SaveAgentRequest):
+async def create_agent(req: SaveAgentRequest, member: dict = Depends(current_member)):
     agent = await _create_agent(req.proposal, sample_data=req.sample_data,
-                                template_id=req.template_id)
+                                template_id=req.template_id, owner_id=member["user_id"],
+                                owner_email=_user_email(member["user_id"]))
     return agent
 
 
@@ -209,18 +317,19 @@ async def get_agent(agent_id: str):
 
 
 @api_router.put("/agents/{agent_id}")
-async def update_agent(agent_id: str, req: UpdateAgentRequest):
-    agent = await get_agent_or_404(agent_id)
+async def update_agent(agent_id: str, req: UpdateAgentRequest, member: dict = Depends(current_member)):
+    await get_managed_agent(agent_id, member)
     updates = {k: v for k, v in req.model_dump().items() if v is not None}
     if not updates:
-        return agent
+        return await get_agent_or_404(agent_id)
     updates["updated_at"] = engine.now_iso()
     await db.agents.update_one({"id": agent_id}, {"$set": updates})
     return await get_agent_or_404(agent_id)
 
 
 @api_router.delete("/agents/{agent_id}")
-async def delete_agent(agent_id: str):
+async def delete_agent(agent_id: str, member: dict = Depends(current_member)):
+    await get_managed_agent(agent_id, member)
     await db.agents.delete_one({"id": agent_id})
     await db.runs.delete_many({"agent_id": agent_id})
     return {"ok": True}
@@ -230,13 +339,16 @@ async def delete_agent(agent_id: str):
 # Run (owner uses ?mode=owner with id; public uses slug)
 # ---------------------------------------------------------------------------
 @api_router.post("/agents/{ref}/run")
-async def run_agent_endpoint(ref: str, req: RunRequest, mode: str = "public"):
+async def run_agent_endpoint(ref: str, req: RunRequest, request: Request, mode: str = "public"):
     run_input = req.model_dump()
 
     if mode == "owner":
         agent = await db.agents.find_one({"id": ref}, {"_id": 0})
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
+        member = await member_from_request(request)
+        if not can_manage(agent, member):
+            raise HTTPException(status_code=403, detail="You can only run agents you manage.")
         config = agent
         version_run = agent.get("version", 1)
         source = "owner"
@@ -290,8 +402,8 @@ async def get_runs(agent_id: str, limit: int = 25):
 # Feedback -> new version
 # ---------------------------------------------------------------------------
 @api_router.post("/agents/{agent_id}/feedback")
-async def submit_feedback(agent_id: str, req: FeedbackRequest):
-    agent = await get_agent_or_404(agent_id)
+async def submit_feedback(agent_id: str, req: FeedbackRequest, member: dict = Depends(current_member)):
+    agent = await get_managed_agent(agent_id, member)
     before = _snapshot(agent)
     updated, changes = engine.apply_feedback(copy.deepcopy(agent), req.text)
     new_version = agent.get("version", 1) + 1
@@ -348,15 +460,15 @@ def prepublish_checklist(agent):
 
 
 @api_router.get("/agents/{agent_id}/prepublish")
-async def get_prepublish(agent_id: str):
-    agent = await get_agent_or_404(agent_id)
+async def get_prepublish(agent_id: str, member: dict = Depends(current_member)):
+    agent = await get_managed_agent(agent_id, member)
     items = prepublish_checklist(agent)
     return {"items": items, "ready": all(i["ok"] for i in items)}
 
 
 @api_router.post("/agents/{agent_id}/publish")
-async def publish_agent(agent_id: str):
-    agent = await get_agent_or_404(agent_id)
+async def publish_agent(agent_id: str, member: dict = Depends(current_member)):
+    agent = await get_managed_agent(agent_id, member)
     items = prepublish_checklist(agent)
     if not all(i["ok"] for i in items):
         failed = [i["label"] for i in items if not i["ok"]]
@@ -375,8 +487,8 @@ async def publish_agent(agent_id: str):
 
 
 @api_router.post("/agents/{agent_id}/unpublish")
-async def unpublish_agent(agent_id: str):
-    agent = await get_agent_or_404(agent_id)
+async def unpublish_agent(agent_id: str, member: dict = Depends(current_member)):
+    await get_managed_agent(agent_id, member)
     await db.agents.update_one({"id": agent_id}, {"$set": {
         "published": False, "status": "test", "updated_at": engine.now_iso(),
     }})
@@ -411,10 +523,10 @@ async def public_agent(slug: str):
 
 
 # ---------------------------------------------------------------------------
-# Demo reset
+# Demo reset (admin only)
 # ---------------------------------------------------------------------------
 @api_router.post("/demo/reset")
-async def reset_demo():
+async def reset_demo(admin: dict = Depends(require_role("admin"))):
     await db.agents.delete_many({})
     await db.runs.delete_many({})
     return {"ok": True, "message": "All demo agents and runs were cleared."}
@@ -429,7 +541,36 @@ async def stats():
     }
 
 
+# ---------------------------------------------------------------------------
+# Current user / admin
+# ---------------------------------------------------------------------------
+@api_router.get("/me")
+async def me(request: Request):
+    if not os.environ.get("CLERK_SECRET_KEY"):
+        return {"signed_in": False, "auth_enabled": False}
+    auth = request.headers.get("authorization", "")
+    token = auth[7:] if auth.lower().startswith("bearer ") else request.cookies.get("__session", "")
+    if not token:
+        return {"signed_in": False, "auth_enabled": True}
+    try:
+        claims = verify_session_token(token)
+    except HTTPException:
+        return {"signed_in": False, "auth_enabled": True}
+    member = await _load_member({"user_id": claims["sub"]})
+    return {"signed_in": True, "auth_enabled": True,
+            "user_id": member["user_id"], "role": member["role"],
+            "email": member.get("owner_email") or _user_email(member["user_id"])}
+
+
+@api_router.get("/users")
+async def list_users(admin: dict = Depends(require_role("admin"))):
+    people = await db.users.find(IN_ENV, {"_id": 0}).to_list(1000)
+    return {"roles": [r for r in ROLES if RANK[r] <= RANK[admin["role"]]],
+            "users": [{**p, "role": effective_role(p.get("role"))} for p in people]}
+
+
 app.include_router(api_router)
+app.include_router(clerk_router)  # /api/clerk/config and /api/__clerk/*
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { Hexagon, Plus } from "lucide-react";
+import { Hexagon, Plus, LogIn } from "lucide-react";
+import { Show, SignInButton, UserButton } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -32,11 +33,23 @@ export function SiteHeader() {
           )}
           <ThemeToggle />
           {!onPublic && (
-            <Button asChild data-testid="nav-create">
-              <Link to="/create">
-                <Plus className="h-4 w-4" /> Create agent
-              </Link>
-            </Button>
+            <>
+              <Show when="signed-out">
+                <SignInButton mode="redirect">
+                  <Button variant="outline" data-testid="nav-signin">
+                    <LogIn className="h-4 w-4" /> Sign in
+                  </Button>
+                </SignInButton>
+              </Show>
+              <Show when="signed-in">
+                <Button asChild data-testid="nav-create">
+                  <Link to="/create"><Plus className="h-4 w-4" /> Create agent</Link>
+                </Button>
+                <div data-testid="nav-user-button">
+                  <UserButton afterSignOutUrl="/" />
+                </div>
+              </Show>
+            </>
           )}
         </div>
       </div>

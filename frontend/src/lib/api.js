@@ -5,6 +5,20 @@ export const API = `${BACKEND_URL}/api`;
 
 const http = axios.create({ baseURL: API });
 
+// Clerk token bridge: a registered getter attaches the session token to every request.
+let _tokenGetter = null;
+export function setTokenGetter(fn) { _tokenGetter = fn; }
+
+http.interceptors.request.use(async (config) => {
+  if (_tokenGetter) {
+    try {
+      const t = await _tokenGetter();
+      if (t) config.headers.Authorization = `Bearer ${t}`;
+    } catch { /* signed out */ }
+  }
+  return config;
+});
+
 export const api = {
   templates: () => http.get("/templates").then((r) => r.data),
   instantiate: (templateId) =>
@@ -34,6 +48,7 @@ export const api = {
 
   resetDemo: () => http.post("/demo/reset").then((r) => r.data),
   stats: () => http.get("/stats").then((r) => r.data),
+  me: () => http.get("/me").then((r) => r.data),
 };
 
 export const siteOrigin = () => window.location.origin;

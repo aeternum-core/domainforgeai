@@ -1,8 +1,11 @@
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { SignIn, SignUp } from "@clerk/react";
 import { Toaster } from "@/components/ui/sonner";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import ClerkAuthProvider from "@/components/auth/ClerkAuthProvider";
+import { AuthBridge } from "@/hooks/useMe";
 import Dashboard from "@/pages/Dashboard";
 import CreateWizard from "@/pages/CreateWizard";
 import Workspace from "@/pages/Workspace";
@@ -19,18 +22,40 @@ function Shell({ children }) {
   );
 }
 
+function AuthScreen({ children }) {
+  return (
+    <div className="grid min-h-screen lg:grid-cols-2">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-primary p-12 text-primary-foreground lg:flex">
+        <div className="dot-grid absolute inset-0 opacity-20" aria-hidden="true" />
+        <span className="relative font-heading text-xl font-extrabold">DomainForge</span>
+        <div className="relative">
+          <h2 className="font-heading text-4xl font-extrabold leading-tight">You understand the problem.</h2>
+          <p className="mt-2 text-lg opacity-90">We help build the agent. Sign in to create, test and publish your own agents.</p>
+        </div>
+        <span className="relative text-sm opacity-80">Accessibility &amp; Social Good · Demo mode</span>
+      </div>
+      <div className="flex items-center justify-center bg-background p-6">{children}</div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <div className="App min-h-screen bg-background text-foreground">
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Shell><Dashboard /></Shell>} />
-            <Route path="/create" element={<Shell><CreateWizard /></Shell>} />
-            <Route path="/agents/:id" element={<Shell><Workspace /></Shell>} />
-            <Route path="/a/:slug" element={<Shell><PublicAgent /></Shell>} />
-            <Route path="*" element={<Shell><NotFound /></Shell>} />
-          </Routes>
+          <ClerkAuthProvider>
+            <AuthBridge />
+            <Routes>
+              <Route path="/" element={<Shell><Dashboard /></Shell>} />
+              <Route path="/create" element={<Shell><CreateWizard /></Shell>} />
+              <Route path="/agents/:id" element={<Shell><Workspace /></Shell>} />
+              <Route path="/a/:slug" element={<Shell><PublicAgent /></Shell>} />
+              <Route path="/sign-in/*" element={<AuthScreen><SignIn routing="path" path="/sign-in" signUpUrl="/sign-up" withSignUp /></AuthScreen>} />
+              <Route path="/sign-up/*" element={<AuthScreen><SignUp routing="path" path="/sign-up" signInUrl="/sign-in" /></AuthScreen>} />
+              <Route path="*" element={<Shell><NotFound /></Shell>} />
+            </Routes>
+          </ClerkAuthProvider>
         </BrowserRouter>
         <Toaster richColors position="top-right" />
       </div>
