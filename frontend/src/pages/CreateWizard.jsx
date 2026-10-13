@@ -85,7 +85,7 @@ export default function CreateWizard() {
     try {
       const res = await api.generate(form);
       setProposal(res.proposal);
-      toast.success("Agent proposal generated (Demo mode)");
+      toast.success("Agent proposal generated (Live Engine)");
     } catch {
       toast.error("Could not generate the proposal.");
     } finally {
@@ -243,7 +243,7 @@ function ProposalEditor({ proposal, updProposal, updStep, removeStep, onRegenera
     <div className="space-y-6" data-testid="proposal-editor">
       <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/40">
         <p className="text-sm text-emerald-900 dark:text-emerald-200">
-          <Sparkles className="mr-1 inline h-4 w-4" /> Draft ready. Edit anything below, then save. Generated in Demo mode.
+          <Sparkles className="mr-1 inline h-4 w-4" /> Draft ready. Edit anything below, then save. Live synthesis engine ready.
         </p>
         <Button variant="outline" size="sm" onClick={onRegenerate}><Wand2 className="h-4 w-4" /> Regenerate</Button>
       </div>

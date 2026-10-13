@@ -22,25 +22,19 @@ except ModuleNotFoundError:  # launched from inside backend/ as `server`
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-db_name = os.environ.get('DB_NAME', 'domainforge')
-
 try:
-    from pymongo import MongoClient
-    test_client = MongoClient(mongo_url, serverSelectionTimeoutMS=1200)
-    test_client.admin.command('ping')
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[db_name]
-    print(f"Connected to live MongoDB at {mongo_url}")
-except Exception as e:
-    import mongomock_motor
-    client = mongomock_motor.AsyncMongoMockClient()
-    db = client[db_name]
-    print(f"MongoDB not running locally ({e}). Using in-memory mongomock database.")
-
+    from backend.app.db import db, client
+    from backend.app.routers.runs import router as runs_router
+    from backend.app.routers.public import router as public_router
+except ModuleNotFoundError:
+    from app.db import db, client
+    from app.routers.runs import router as runs_router
+    from app.routers.public import router as public_router
 
 app = FastAPI(title="DomainForge AI")
 api_router = APIRouter(prefix="/api")
+api_router.include_router(runs_router)
+api_router.include_router(public_router)
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -301,6 +295,28 @@ async def _create_agent(proposal, sample_data=None, is_sample=False, template_id
     agent["improvement_notes"] = agent.get("improvement_notes", [])
     agent["created_at"] = engine.now_iso()
     agent["updated_at"] = engine.now_iso()
+
+    # Synchronize schema fields
+    if not agent.get("problem_statement") and agent.get("problem"):
+        agent["problem_statement"] = agent["problem"]
+    elif not agent.get("problem") and agent.get("problem_statement"):
+        agent["problem"] = agent["problem_statement"]
+
+    if not agent.get("expected_outputs") and agent.get("outputs"):
+        agent["expected_outputs"] = list(agent["outputs"])
+    elif not agent.get("outputs") and agent.get("expected_outputs"):
+        agent["outputs"] = list(agent["expected_outputs"])
+
+    if not agent.get("workflow_steps") and agent.get("workflow"):
+        agent["workflow_steps"] = list(agent["workflow"])
+    elif not agent.get("workflow") and agent.get("workflow_steps"):
+        agent["workflow"] = list(agent["workflow_steps"])
+
+    if not agent.get("tools_config") and agent.get("tools"):
+        agent["tools_config"] = list(agent["tools"])
+    elif not agent.get("tools") and agent.get("tools_config"):
+        agent["tools"] = list(agent["tools_config"])
+
     agent["versions"] = [{
         "version": 1, "note": "Initial version", "created_at": engine.now_iso(),
         "snapshot": _snapshot(agent),
@@ -311,9 +327,9 @@ async def _create_agent(proposal, sample_data=None, is_sample=False, template_id
 
 
 def _snapshot(agent):
-    keys = ["name", "purpose", "domain", "problem", "beneficiaries", "constraints",
-            "inputs", "outputs", "workflow", "tools", "checks", "limitations",
-            "assumptions", "improvement_notes"]
+    keys = ["name", "purpose", "domain", "problem", "problem_statement", "beneficiaries", "constraints",
+            "inputs", "outputs", "expected_outputs", "workflow", "workflow_steps", "tools", "tools_config",
+            "checks", "limitations", "assumptions", "improvement_notes"]
     return {k: copy.deepcopy(agent.get(k)) for k in keys}
 
 
@@ -519,6 +535,7 @@ async def unpublish_agent(agent_id: str, member: dict = Depends(current_member))
 # Public published view (safe subset, no owner controls)
 # ---------------------------------------------------------------------------
 @api_router.get("/public/agents/{slug}")
+@api_router.get("/public/{slug}")
 async def public_agent(slug: str):
     agent = await db.agents.find_one({"slug": slug}, {"_id": 0})
     if not agent or not agent.get("published") or not agent.get("published_version"):

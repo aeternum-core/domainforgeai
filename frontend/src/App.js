@@ -33,7 +33,7 @@ function AuthScreen({ children }) {
           <h2 className="font-heading text-4xl font-extrabold leading-tight">You understand the problem.</h2>
           <p className="mt-2 text-lg opacity-90">We help build the agent. Sign in to create, test and publish your own agents.</p>
         </div>
-        <span className="relative text-sm opacity-80">Accessibility &amp; Social Good · Demo mode</span>
+        <span className="relative text-sm opacity-80">DomainForge · Live Engine</span>
       </div>
       <div className="flex items-center justify-center bg-background p-6">{children}</div>
     </div>
@@ -46,8 +46,8 @@ function SafeSignIn() {
   if (!auth?.clerkEnabled) {
     return (
       <div className="text-center space-y-4">
-        <h3 className="text-xl font-bold">Demo Mode Active</h3>
-        <p className="text-sm text-muted-foreground">You are in Demo mode with full administrative and authoring access. No sign in required.</p>
+        <h3 className="text-xl font-bold">Live Engine Active</h3>
+        <p className="text-sm text-muted-foreground">You are running the Live Engine with full authoring and execution access. No sign in required.</p>
         <Button asChild><Link to="/">Go to Dashboard</Link></Button>
       </div>
     );
@@ -60,8 +60,8 @@ function SafeSignUp() {
   if (!auth?.clerkEnabled) {
     return (
       <div className="text-center space-y-4">
-        <h3 className="text-xl font-bold">Demo Mode Active</h3>
-        <p className="text-sm text-muted-foreground">You are in Demo mode with full administrative and authoring access. No sign up required.</p>
+        <h3 className="text-xl font-bold">Live Engine Active</h3>
+        <p className="text-sm text-muted-foreground">You are running the Live Engine with full authoring and execution access. No sign up required.</p>
         <Button asChild><Link to="/">Go to Dashboard</Link></Button>
       </div>
     );
@@ -81,6 +81,7 @@ function App() {
               <Route path="/create" element={<Shell><CreateWizard /></Shell>} />
               <Route path="/agents/:id" element={<Shell><Workspace /></Shell>} />
               <Route path="/a/:slug" element={<Shell><PublicAgent /></Shell>} />
+              <Route path="/p/:slug" element={<Shell><PublicAgent /></Shell>} />
               <Route path="/sign-in/*" element={<AuthScreen><SafeSignIn /></AuthScreen>} />
               <Route path="/sign-up/*" element={<AuthScreen><SafeSignUp /></AuthScreen>} />
               <Route path="*" element={<Shell><NotFound /></Shell>} />

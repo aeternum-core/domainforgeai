@@ -26,8 +26,8 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex items-center gap-2">
-          <span className="hidden items-center gap-1.5 rounded-full border border-indigo-300 bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-200 sm:inline-flex">
-            Demo mode
+          <span className="hidden items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 sm:inline-flex">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Live Engine
           </span>
           {!onPublic && (
             <Button asChild variant="ghost" className="hidden sm:inline-flex">

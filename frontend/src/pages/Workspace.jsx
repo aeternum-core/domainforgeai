@@ -4,21 +4,24 @@ import { toast } from "sonner";
 import {
   Loader2, Save, Rocket, Trash2, Copy, ExternalLink, RotateCcw, History,
   MessageSquarePlus, CheckCircle2, XCircle, ArrowLeft, Database, PencilLine, ShieldAlert,
+  ChevronDown, ChevronRight, Code, Sparkles, Check, Terminal,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { api, siteOrigin } from "@/lib/api";
+import { api, siteOrigin, API } from "@/lib/api";
 import { AgentStatusBadge } from "@/components/StatusBadge";
 import { WorkflowDiagram } from "@/components/WorkflowDiagram";
 import { RunView, RunResult } from "@/components/RunView";
 import { ChecklistResult } from "@/components/ChecklistResult";
+import { MarkdownView } from "@/components/MarkdownView";
 import { TOOL_ICONS, timeAgo } from "@/lib/ui";
 
 const TABS = [
@@ -48,11 +51,39 @@ export default function Workspace() {
     return <div className="mx-auto max-w-5xl px-4 py-20 text-center text-muted-foreground"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></div>;
   }
 
-  const onOwnerRun = async (payload) => {
-    const run = await api.runOwner(id, payload);
-    setLatestRun(run);
-    refresh();
-    return run;
+  const onOwnerRun = async (payload, callbacks = {}) => {
+    try {
+      const init = await api.initRun(id, payload);
+      const runId = init.run_id;
+      return new Promise((resolve, reject) => {
+        const cleanup = api.streamRun(id, runId, {
+          onProgress: (trace, data) => {
+            callbacks.onProgress?.(trace);
+          },
+          onCompleted: (compData) => {
+            setLatestRun(compData);
+            callbacks.onCompleted?.(compData);
+            refresh();
+            resolve(compData);
+          },
+          onError: (err) => {
+            // Fallback to synchronous run if stream errors
+            api.runOwner(id, payload).then((legacy) => {
+              setLatestRun(legacy);
+              callbacks.onCompleted?.(legacy);
+              refresh();
+              resolve(legacy);
+            }).catch(reject);
+          },
+        });
+      });
+    } catch {
+      const run = await api.runOwner(id, payload);
+      setLatestRun(run);
+      callbacks.onCompleted?.(run);
+      refresh();
+      return run;
+    }
   };
 
   return (
@@ -63,7 +94,12 @@ export default function Workspace() {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <AgentStatusBadge status={agent.status} />
-            <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">v{agent.version}</span>
+            <span className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+              {agent.published ? `Published / v${agent.version}` : `Draft / v${agent.version}`}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Engine
+            </span>
             {agent.is_sample && <span className="rounded-full border border-indigo-300 bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">Sample data</span>}
             {agent.published && <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"><Rocket className="h-3 w-3" /> Live</span>}
           </div>
@@ -264,14 +300,21 @@ function ResultsTab({ latestRun, onGoRun }) {
   if (!latestRun) {
     return (
       <div className="rounded-xl border border-dashed border-border p-10 text-center">
-        <p className="text-sm text-muted-foreground">No runs yet. Head to the Run tab to try the agent.</p>
+        <p className="text-sm text-muted-foreground">No runs yet. Head to the Run tab to execute the live agent.</p>
         <Button className="mt-4" onClick={onGoRun}>Go to Run</Button>
       </div>
     );
   }
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Result from the most recent run · {timeAgo(latestRun.created_at)} · {latestRun.result.records_count} record(s) from the {latestRun.result.record_source}.</p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          Result from latest run · {timeAgo(latestRun.created_at)} · {latestRun.result?.records_count ?? 0} record(s) processed
+        </p>
+        <Badge variant="outline" className="border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+          Live Synthesized
+        </Badge>
+      </div>
       <RunResult result={latestRun.result} idPrefix="results" />
     </div>
   );
@@ -279,24 +322,74 @@ function ResultsTab({ latestRun, onGoRun }) {
 
 /* ---------------- Activity ---------------- */
 function ActivityTab({ runs, feedback }) {
+  const [expandedRunId, setExpandedRunId] = useState(null);
+
   if (!runs.length && !(feedback || []).length) {
     return <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">No activity yet.</div>;
   }
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <Card title={`Run history (${runs.length})`}>
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {runs.map((r) => {
-            const warn = r.steps.filter((s) => s.status === "warning").length;
+            const runKey = r.run_id || r.id;
+            const isExpanded = expandedRunId === runKey;
+            const events = r.events || [];
             return (
-              <li key={r.id} className="rounded-lg border border-border bg-background p-3">
+              <li key={runKey} className="rounded-lg border border-border bg-background p-3 transition-all">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold capitalize">{r.source} run · v{r.version_run}</span>
+                  <span className="font-semibold capitalize flex items-center gap-1.5">
+                    {r.source || "owner"} run · v{r.version_run || 1}
+                    {r.status && (
+                      <Badge variant="outline" className="text-[10px] uppercase ml-1">
+                        {r.status}
+                      </Badge>
+                    )}
+                  </span>
                   <span className="text-xs text-muted-foreground">{timeAgo(r.created_at)}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {r.result.records_count} record(s); {r.steps.length} tools executed{warn ? `; ${warn} needing attention` : "; all clear"}.
+                  {r.result?.records_count ?? 0} record(s) analyzed · {events.length || r.steps?.length || 0} trace event(s) recorded.
                 </p>
+
+                {/* Expand / Collapse Trace */}
+                <button
+                  type="button"
+                  onClick={() => setExpandedRunId(isExpanded ? null : runKey)}
+                  className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                  {isExpanded ? "Hide chronological trace" : "View chronological event trace & tool outputs"}
+                </button>
+
+                {isExpanded && (
+                  <div className="mt-3 space-y-2 border-t border-border pt-3">
+                    <h5 className="font-heading text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Terminal className="h-3.5 w-3.5 text-primary" /> Chronological Event Trace from Database
+                    </h5>
+                    {(events.length > 0 ? events : (r.steps || [])).map((ev, eIdx) => (
+                      <div key={eIdx} className="rounded-md border border-border bg-muted/40 p-2 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground">{ev.step_name || ev.title}</span>
+                          <span className="text-[10px] text-muted-foreground">{ev.timestamp ? timeAgo(ev.timestamp) : ""}</span>
+                        </div>
+                        <p className="text-muted-foreground">{ev.message || ev.summary}</p>
+                        {ev.tool_call && (
+                          <div className="pt-1">
+                            <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-medium text-primary">
+                              tool: {ev.tool_call}
+                            </span>
+                          </div>
+                        )}
+                        {ev.tool_output && (
+                          <pre className="mt-1 max-h-28 overflow-auto rounded bg-background p-1.5 font-mono text-[10px] text-foreground/80">
+                            {JSON.stringify(ev.tool_output, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </li>
             );
           })}
@@ -391,7 +484,18 @@ function ImproveTab({ agent, onSaved }) {
 function DeployTab({ agent, onChanged, onGoRun }) {
   const [pre, setPre] = useState(null);
   const [busy, setBusy] = useState(false);
-  const publicUrl = agent.slug ? `${siteOrigin()}/a/${agent.slug}` : null;
+  const [copiedCurl, setCopiedCurl] = useState(false);
+  const publicUrl = agent.slug ? `${siteOrigin()}/p/${agent.slug}` : null;
+  const legacyUrl = agent.slug ? `${siteOrigin()}/a/${agent.slug}` : null;
+
+  const curlSnippet = `curl -X POST "${API}/public/${agent.slug || "slug"}/runs" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "inputs": {
+      "situation": "Field notes: recurrent waterlogging observed along study corridor."
+    },
+    "use_sample": true
+  }'`;
 
   const loadPre = useCallback(() => { api.prepublish(agent.id).then(setPre).catch(() => {}); }, [agent.id]);
   useEffect(() => { loadPre(); }, [loadPre, agent.version, agent.test_passed]);
@@ -406,7 +510,13 @@ function DeployTab({ agent, onChanged, onGoRun }) {
     try { await api.unpublish(agent.id); toast.success("Unpublished. The public page is now disabled."); onChanged(); }
     catch { toast.error("Could not unpublish."); } finally { setBusy(false); }
   };
-  const copy = () => { navigator.clipboard.writeText(publicUrl); toast.success("URL copied"); };
+  const copyUrl = () => { navigator.clipboard.writeText(publicUrl); toast.success("Shareable URL copied"); };
+  const copyCurl = () => {
+    navigator.clipboard.writeText(curlSnippet);
+    setCopiedCurl(true);
+    toast.success("REST API curl command copied to clipboard!");
+    setTimeout(() => setCopiedCurl(false), 2000);
+  };
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
@@ -464,24 +574,51 @@ function DeployTab({ agent, onChanged, onGoRun }) {
         </div>
       </Card>
 
-      <Card title="Shareable public page">
-        {agent.published && publicUrl ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Anyone with this link can run the published version — no editing controls.</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2 text-xs" data-testid="public-url">{publicUrl}</code>
-              <Button variant="outline" size="icon" aria-label="Copy URL" onClick={copy} data-testid="copy-url"><Copy className="h-4 w-4" /></Button>
+      <div className="space-y-5">
+        <Card title="Shareable public page">
+          {agent.published && publicUrl ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Anyone with this link can run the published version live — no editing controls.</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 overflow-x-auto rounded-lg border border-border bg-muted px-3 py-2 text-xs font-mono" data-testid="public-url">{publicUrl}</code>
+                <Button variant="outline" size="icon" aria-label="Copy URL" onClick={copyUrl} data-testid="copy-url"><Copy className="h-4 w-4" /></Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm" data-testid="open-public">
+                  <Link to={`/p/${agent.slug}`} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open /p/{agent.slug}</Link>
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to={`/a/${agent.slug}`} target="_blank" rel="noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5" /> /a/{agent.slug}</Link>
+                </Button>
+              </div>
             </div>
-            <Button asChild variant="outline" data-testid="open-public"><Link to={`/a/${agent.slug}`} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> Open public page</Link></Button>
-            <p className="rounded-lg border border-border bg-muted/50 p-2 text-xs text-muted-foreground">
-              Published on this running application and persisted on its server, so the link keeps working after a refresh.
-              It is not pushed to the public internet — see the README to host it.
+          ) : (
+            <p className="text-sm text-muted-foreground">Publish the agent to generate a stable, shareable URL that runs the tested version.</p>
+          )}
+        </Card>
+
+        <Card title="REST API Integration">
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Trigger standalone execution and receive streaming Server-Sent Events (SSE) via curl or programmatic HTTP:
             </p>
+            <div className="relative">
+              <pre className="overflow-x-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-relaxed text-foreground">
+                {curlSnippet}
+              </pre>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute top-2 right-2 h-7 text-xs"
+                onClick={copyCurl}
+              >
+                {copiedCurl ? <Check className="mr-1 h-3 w-3 text-emerald-600" /> : <Copy className="mr-1 h-3 w-3" />}
+                {copiedCurl ? "Copied" : "Copy curl"}
+              </Button>
+            </div>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Publish the agent to generate a stable, shareable URL that runs the tested version.</p>
-        )}
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

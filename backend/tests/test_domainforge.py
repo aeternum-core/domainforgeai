@@ -6,12 +6,29 @@ import requests
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').rstrip('/')
 # Backend URL - try frontend .env first
 if not BASE_URL or BASE_URL == 'http://localhost:3000':
-    # Read from frontend .env
-    with open('/app/frontend/.env') as f:
-        for line in f:
-            if line.startswith('REACT_APP_BACKEND_URL='):
-                BASE_URL = line.split('=', 1)[1].strip().rstrip('/')
+    # Read from frontend .env if present
+    env_candidates = [
+        '/app/frontend/.env',
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', '.env')),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.env')),
+    ]
+    for env_file in env_candidates:
+        if os.path.exists(env_file):
+            try:
+                with open(env_file) as f:
+                    for line in f:
+                        if line.startswith('REACT_APP_BACKEND_URL='):
+                            val = line.split('=', 1)[1].strip().rstrip('/')
+                            if val:
+                                BASE_URL = val
+                                break
+            except Exception:
+                pass
+            if BASE_URL and BASE_URL != 'http://localhost:3000':
                 break
+
+if not BASE_URL or BASE_URL == 'http://localhost:3000':
+    BASE_URL = os.environ.get('BACKEND_URL', 'http://127.0.0.1:8001')
 
 API = f"{BASE_URL}/api"
 

@@ -37,6 +37,37 @@ export const api = {
     http.post(`/agents/${slug}/run`, payload).then((r) => r.data),
   getRuns: (id) => http.get(`/agents/${id}/runs`).then((r) => r.data),
 
+  // Live streaming execution endpoints
+  initRun: (id, payload) =>
+    http.post(`/agents/${id}/runs`, payload).then((r) => r.data),
+  getRun: (id, runId) =>
+    http.get(`/agents/${id}/runs/${runId}`).then((r) => r.data),
+  streamRun: (id, runId, { onProgress, onCompleted, onError }) => {
+    const es = new EventSource(`${API}/agents/${id}/runs/${runId}/stream`);
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.event === "step_progress") {
+          onProgress?.(data.trace, data);
+        } else if (data.event === "run_completed") {
+          onCompleted?.(data);
+          es.close();
+        } else if (data.event === "run_failed" || data.event === "error") {
+          onError?.(data);
+          es.close();
+        }
+      } catch (err) {
+        console.error("SSE parse error", err);
+      }
+    };
+    es.onerror = (err) => {
+      console.warn("SSE connection closed or error", err);
+      onError?.(err);
+      es.close();
+    };
+    return () => es.close();
+  },
+
   feedback: (id, text) => http.post(`/agents/${id}/feedback`, { text }).then((r) => r.data),
   versions: (id) => http.get(`/agents/${id}/versions`).then((r) => r.data),
 

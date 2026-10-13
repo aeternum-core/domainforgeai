@@ -37,7 +37,11 @@ export default function PublicAgent() {
     );
   }
 
-  const onRun = (payload) => api.runPublic(slug, payload);
+  const onRun = async (payload, callbacks = {}) => {
+    const res = await api.runPublic(slug, payload);
+    callbacks.onCompleted?.(res);
+    return res;
+  };
 
   return (
     <div className="animate-fade-in">
